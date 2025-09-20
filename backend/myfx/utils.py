@@ -11,7 +11,7 @@ def fetch_xauusd(latest_only=True):
     params = {
         "symbol": "XAU/USD",
         "interval": "1day",
-        "outputsize": 10,  # just fetch last 10 days
+        "outputsize": 365,  # just fetch last 10 days
         "apikey": "92316069f35c407aa1ebdbd7279fe144",
     }
     response = requests.get(url, params=params)
