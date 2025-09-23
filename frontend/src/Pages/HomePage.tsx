@@ -1,9 +1,6 @@
 import { Box, Heading } from '@chakra-ui/react'
-import React from 'react'
 
-type Props = {}
-
-const HomePage = (props: Props) => {
+const HomePage = () => {
   return (
     <Box>
         <Heading>This is home page</Heading>

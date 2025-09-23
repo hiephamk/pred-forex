@@ -1,10 +1,8 @@
-import { Box, Center, HStack } from '@chakra-ui/react'
-import React from 'react'
+import { Box, HStack } from '@chakra-ui/react'
 import { NavLink } from 'react-router'
 
-type Props = {}
 
-const Dashboard_Nav = (props: Props) => {
+const Dashboard_Nav = () => {
   return (
     <Box p={"10px"} w={"99vw"} border={"1px solid"} rounded={"7px"} bg={"#d3d3d3"}>
         <HStack w={'100%'} justifyContent={"space-between"} alignItems={"center"} >

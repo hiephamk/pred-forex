@@ -1,6 +1,9 @@
 
 from pathlib import Path
+from datetime import timedelta
 import environ # type: ignore
+import os
+
 env = environ.Env(DEBUG=(bool, False))
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -10,7 +13,7 @@ environ.Env.read_env(BASE_DIR / ".env")
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-!2kff5(u-e!0dutv0ugmtt+0v9g)4=4)2l=82o=nw55a-s1k84'
+SECRET_KEY = env("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -71,12 +74,12 @@ WSGI_APPLICATION = 'main.wsgi.application'
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "myfx",
-        "USER": 'hiepfx',
-        "PASSWORD": 'kingzarckier',
-        "HOST": "localhost",
-        "PORT": "5432",
+        "ENGINE":env("ENGINE"),
+        "NAME":env("NAME"),
+        "USER":env("USER_1"),
+        "PASSWORD":env("PASSWORD"),
+        "HOST":env("HOST"),
+        "PORT":env("PORT"),
         }
 }
 

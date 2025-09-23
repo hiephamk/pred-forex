@@ -13,7 +13,7 @@ def fetch_xauusd(latest_only=True):
         "symbol": "XAU/USD",
         "interval": "1day",
         "outputsize": 30,  # just fetch last 10 days
-        "apikey": os.environ.get("apiKey"),
+        "apikey": os.environ.get("apiKey_twelvedata"),
     }
     response = requests.get(url, params=params)
     data = response.json()

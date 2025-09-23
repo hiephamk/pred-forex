@@ -11,7 +11,6 @@ import {
 //   useToast,
 } from "@chakra-ui/react";
 import { Line } from "react-chartjs-2";
-import { Prediction } from "../types";
 
 import {
   Chart as ChartJS,
@@ -24,6 +23,11 @@ import {
 } from "chart.js";
 
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Tooltip, Legend);
+
+type Prediction = {
+  date: string;
+  predicted_close: number;
+};
 
 function FxDashboard() {
   const [preds, setPreds] = useState<Prediction[]>([]);
