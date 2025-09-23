@@ -1,6 +1,7 @@
 import requests
 from django.utils.dateparse import parse_datetime
 from .models import ForexData
+import os
 
 def fetch_xauusd(latest_only=True):
     """
@@ -12,7 +13,7 @@ def fetch_xauusd(latest_only=True):
         "symbol": "XAU/USD",
         "interval": "1day",
         "outputsize": 30,  # just fetch last 10 days
-        "apikey": "92316069f35c407aa1ebdbd7279fe144",
+        "apikey": os.environ.get("apiKey"),
     }
     response = requests.get(url, params=params)
     data = response.json()
