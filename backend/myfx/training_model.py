@@ -107,163 +107,6 @@ def predict_next(days=5, normalize=True):
 
     return preds
 
-### version 2
-"""
-version-2
-"""
-# import torch
-# import torch.nn as nn
-# import torch.optim as optim
-# import pandas as pd
-# import numpy as np
-# from sklearn.preprocessing import MinMaxScaler
-# from .models import ForexData
-# from .utils import fetch_xauusd
-
-# MODEL_PATH = "xauusd_nn.pt"
-
-# class ForexNN(nn.Module):
-#     def __init__(self, input_size=1, hidden_size=64, num_layers=2, output_size=1):
-#         super(ForexNN, self).__init__()
-#         self.hidden_size = hidden_size
-#         self.num_layers = num_layers
-#         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=0.2)
-#         self.fc = nn.Linear(hidden_size, output_size)
-#         self.relu = nn.ReLU()
-    
-#     def forward(self, x):
-#         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-#         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-#         out, _ = self.lstm(x, (h0, c0))
-#         out = self.fc(out[:, -1, :])  # Take the last time step's output
-#         return out
-
-# def load_data(fetch_if_empty=True, window_size=30, normalize=True):
-#     """
-#     Load XAU/USD data from DB and prepare sequences for LSTM.
-#     - fetch_if_empty: automatically fetch data if table is empty
-#     - window_size: number of past days to use for prediction
-#     - normalize: scale close prices to 0-1 for training
-#     """
-#     if ForexData.objects.count() == 0 and fetch_if_empty:
-#         fetch_xauusd()
-
-#     qs = ForexData.objects.all().order_by("date")
-#     df = pd.DataFrame(list(qs.values("date", "close")))
-#     if df.empty:
-#         return None, None, None, None, None
-
-#     df["date"] = pd.to_datetime(df["date"])
-    
-#     # Normalize close prices
-#     scaler = MinMaxScaler(feature_range=(0, 1))
-#     scaled_data = scaler.fit_transform(df["close"].values.reshape(-1, 1)) if normalize else df["close"].values.reshape(-1, 1)
-
-#     # Create sequences
-#     X, y = [], []
-#     for i in range(len(scaled_data) - window_size):
-#         X.append(scaled_data[i:i + window_size])
-#         y.append(scaled_data[i + window_size])
-
-#     X = np.array(X)
-#     y = np.array(y)
-
-#     # Convert to tensors
-#     X = torch.tensor(X, dtype=torch.float32)
-#     y = torch.tensor(y, dtype=torch.float32)
-
-#     return X, y, df, scaler if normalize else None, window_size
-
-# def train_nn(epochs=200, lr=0.001, train_split=0.8, patience=20):
-#     X, y, df, scaler, window_size = load_data()
-#     if X is None:
-#         print("No data to train")
-#         return None
-
-#     # Train-test split (time-series aware)
-#     train_size = int(len(X) * train_split)
-#     X_train, X_val = X[:train_size], X[train_size:]
-#     y_train, y_val = y[:train_size], y[train_size:]
-
-#     model = ForexNN(input_size=1, hidden_size=64, num_layers=2)
-#     criterion = nn.MSELoss()
-#     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)  # L2 regularization
-#     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, factor=0.5)
-
-#     best_val_loss = float('inf')
-#     early_stop_counter = 0
-
-#     for epoch in range(epochs):
-#         model.train()
-#         optimizer.zero_grad()
-#         outputs = model(X_train)
-#         loss = criterion(outputs, y_train)
-#         loss.backward()
-#         optimizer.step()
-
-#         # Validation
-#         model.eval()
-#         with torch.no_grad():
-#             val_outputs = model(X_val)
-#             val_loss = criterion(val_outputs, y_val)
-
-#         scheduler.step(val_loss)
-
-#         if epoch % 10 == 0:
-#             print(f"Epoch {epoch}/{epochs}, Train Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}")
-
-#         # Early stopping
-#         if val_loss < best_val_loss:
-#             best_val_loss = val_loss
-#             early_stop_counter = 0
-#             torch.save(model.state_dict(), MODEL_PATH)
-#         else:
-#             early_stop_counter += 1
-#             if early_stop_counter >= patience:
-#                 print(f"Early stopping at epoch {epoch}")
-#                 break
-
-#     print(f"Neuro Network saved to {MODEL_PATH}")
-#     return model
-
-# def predict_next(days=5, normalize=True):
-#     X, y, df, scaler, window_size = load_data(fetch_if_empty=True, normalize=normalize)
-#     if X is None:
-#         return []
-
-#     model = ForexNN(input_size=1, hidden_size=64, num_layers=2)
-#     model.load_state_dict(torch.load(MODEL_PATH))
-#     model.eval()
-
-#     last_date = df["date"].iloc[-1]
-#     predictions = []
-
-#     # Start with the last window of actual data
-#     current_window = df["close"].values[-window_size:].reshape(-1, 1)
-#     if normalize and scaler is not None:
-#         current_window = scaler.transform(current_window)
-#     current_window = current_window.reshape(1, window_size, 1)
-#     current_window = torch.tensor(current_window, dtype=torch.float32)
-
-#     for i in range(days):
-#         with torch.no_grad():
-#             pred = model(current_window)
-#             pred_denorm = scaler.inverse_transform(pred.numpy())[0][0] if normalize and scaler is not None else pred.numpy()[0][0]
-#             predictions.append({
-#                 "date": str(last_date + pd.Timedelta(days=i + 1)),
-#                 "predicted_close": round(pred_denorm, 2)
-#             })
-
-#         # Update window with the new prediction (autoregressive)
-#         new_pred = pred.numpy().reshape(1, 1, 1)
-#         current_window = torch.cat((current_window[:, 1:, :], torch.tensor(new_pred)), dim=1)
-
-#     return predictions
-
-"""
-version-3
-"""
-
 # import torch
 # import torch.nn as nn
 # import torch.optim as optim
@@ -271,29 +114,20 @@ version-3
 # import numpy as np
 # import os
 # import pickle
-# from django.conf import settings
 # from .models import ForexData
 # from .utils import fetch_xauusd
-# import warnings
-# warnings.filterwarnings('ignore')
 
-# # Use Django's media root for model storage
-# MODEL_DIR = os.path.join(settings.MEDIA_ROOT, 'forex_models')
-# os.makedirs(MODEL_DIR, exist_ok=True)
-# MODEL_PATH = os.path.join(MODEL_DIR, "xauusd_nn.pt")
-# SCALER_PATH = os.path.join(MODEL_DIR, "xauusd_scaler.pkl")
+# MODEL_PATH = "xauusd_lstm.pt"
+# SCALER_PATH = "xauusd_scaler.pkl"
+# SEQUENCE_LENGTH = 15  # number of days to look back
 
 # class ForexNN(nn.Module):
 #     def __init__(self, input_size=5, hidden_size=64, num_layers=2, dropout=0.2):
 #         super(ForexNN, self).__init__()
 #         self.hidden_size = hidden_size
 #         self.num_layers = num_layers
-        
-#         # LSTM layers for sequence modeling
 #         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, 
-#                            batch_first=True, dropout=dropout if num_layers > 1 else 0)
-        
-#         # Fully connected layers with dropout
+#                             batch_first=True, dropout=dropout if num_layers>1 else 0)
 #         self.fc_layers = nn.Sequential(
 #             nn.Linear(hidden_size, 32),
 #             nn.ReLU(),
@@ -303,295 +137,205 @@ version-3
 #             nn.Dropout(dropout),
 #             nn.Linear(16, 1)
 #         )
-        
-#     def forward(self, x):
-#         # LSTM forward pass
-#         lstm_out, _ = self.lstm(x)
-#         # Use the last output from LSTM
-#         last_output = lstm_out[:, -1, :]
-#         # Pass through fully connected layers
-#         output = self.fc_layers(last_output)
-#         return output
 
-# def create_technical_indicators(df):
-#     """Create technical indicators as features using Django QuerySet data"""
+#     def forward(self, x):
+#         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+#         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+#         lstm_out, _ = self.lstm(x, (h0, c0))
+#         last_output = lstm_out[:, -1, :]
+#         return self.fc_layers(last_output)
+
+# def create_features(df):
+#     """Add technical indicators and prepare features"""
 #     df = df.copy()
-    
-#     # Ensure we have required columns
-#     required_cols = ['close', 'open', 'high', 'low', 'volume']
-#     missing_cols = [col for col in required_cols if col not in df.columns]
-    
-#     # If missing OHLV data, create basic approximations
-#     if missing_cols:
-#         if 'open' not in df.columns:
-#             df['open'] = df['close'].shift(1).fillna(df['close'])
-#         if 'high' not in df.columns:
-#             df['high'] = df['close'] * 1.001  # Small approximation
-#         if 'low' not in df.columns:
-#             df['low'] = df['close'] * 0.999
-#         if 'volume' not in df.columns:
-#             df['volume'] = 1000  # Default volume
-    
-#     # Moving averages
-#     df['ma_5'] = df['close'].rolling(window=5, min_periods=1).mean()
-#     df['ma_10'] = df['close'].rolling(window=10, min_periods=1).mean()
-#     df['ma_20'] = df['close'].rolling(window=20, min_periods=1).mean()
-    
-#     # RSI (simplified version)
-#     def calculate_rsi(prices, period=14):
-#         delta = prices.diff()
-#         gain = (delta.where(delta > 0, 0)).rolling(window=period, min_periods=1).mean()
-#         loss = (-delta.where(delta < 0, 0)).rolling(window=period, min_periods=1).mean()
-#         rs = gain / (loss + 1e-8)  # Add small epsilon to avoid division by zero
-#         return 100 - (100 / (1 + rs))
-    
-#     df['rsi'] = calculate_rsi(df['close'])
-    
-#     # Price momentum
-#     df['momentum'] = df['close'].pct_change(periods=5).fillna(0)
-    
-#     # Bollinger Bands position (simplified)
-#     bb_period = 20
-#     df['bb_middle'] = df['close'].rolling(window=bb_period, min_periods=1).mean()
-#     bb_std = df['close'].rolling(window=bb_period, min_periods=1).std()
-#     df['bb_upper'] = df['bb_middle'] + (bb_std * 2)
-#     df['bb_lower'] = df['bb_middle'] - (bb_std * 2)
-    
-#     # Avoid division by zero in bb_position
-#     bb_range = df['bb_upper'] - df['bb_lower']
-#     df['bb_position'] = np.where(bb_range > 0, 
-#                                 (df['close'] - df['bb_lower']) / bb_range, 
-#                                 0.5)  # Default to middle position
-    
-#     # Fill any remaining NaN values
-#     df = df.fillna(method='ffill').fillna(method='bfill').fillna(0)
-    
+#     for col in ["open", "high", "low", "close"]:
+#         if col not in df.columns:
+#             df[col] = df["close"].shift(1).fillna(df["close"])
+#     df["ma_5"] = df["close"].rolling(5, min_periods=1).mean()
+#     df = df.fillna(method='ffill').fillna(method='bfill')
 #     return df
 
 # class SimpleScaler:
-#     """Simple MinMax scaler to avoid sklearn dependency"""
 #     def __init__(self):
 #         self.data_min_ = None
 #         self.data_max_ = None
 #         self.data_range_ = None
         
 #     def fit(self, X):
-#         self.data_min_ = np.min(X, axis=0)
-#         self.data_max_ = np.max(X, axis=0)
+#         self.data_min_ = X.min(axis=0)
+#         self.data_max_ = X.max(axis=0)
 #         self.data_range_ = self.data_max_ - self.data_min_
-#         # Avoid division by zero
-#         self.data_range_[self.data_range_ == 0] = 1.0
+#         self.data_range_[self.data_range_==0] = 1.0
 #         return self
-        
+    
 #     def transform(self, X):
+#         if self.data_min_ is None or self.data_range_ is None:
+#             raise ValueError("Scaler must be fitted before transforming")
 #         return (X - self.data_min_) / self.data_range_
-        
+    
 #     def fit_transform(self, X):
 #         return self.fit(X).transform(X)
-        
+    
 #     def inverse_transform(self, X):
+#         if self.data_min_ is None or self.data_range_ is None:
+#             raise ValueError("Scaler must be fitted before inverse transforming")
 #         return X * self.data_range_ + self.data_min_
 
-# def create_sequences(data, sequence_length=15):
-#     """Create sequences for LSTM input"""
+# def create_sequences(data, sequence_length=SEQUENCE_LENGTH):
 #     X, y = [], []
 #     for i in range(sequence_length, len(data)):
 #         X.append(data[i-sequence_length:i])
-#         y.append(data[i, 0])  # Close price is first column
+#         y.append(data[i, 0])  # predict close price
 #     return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)
 
-# def load_data(sequence_length=15, test_split=0.2):
-#     """Load and prepare data from Django ForexData model"""
+# def load_data(sequence_length=SEQUENCE_LENGTH, test_split=0.2, fetch_if_empty=True):
+#     if ForexData.objects.count() == 0 and fetch_if_empty:
+#         fetch_xauusd()
     
-#     # Fetch data if needed
-#     if ForexData.objects.count() == 0:
-#         try:
-#             fetch_xauusd()
-#         except Exception as e:
-#             print(f"Could not fetch data: {e}")
-#             return None, None, None, None, None, None
-    
-#     # Get data from Django model
 #     qs = ForexData.objects.all().order_by("date")
+#     df = pd.DataFrame(list(qs.values("date", "open", "high", "low", "close")))
     
-#     # Handle different possible field names in your ForexData model
-#     field_names = [f.name for f in ForexData._meta.get_fields()]
+#     if df.empty or len(df) < sequence_length + 1:
+#         print("Not enough data")
+#         return None, None, None, None, None
     
-#     # Build values list based on available fields
-#     values_list = ["date", "close"]
-#     optional_fields = ["open", "high", "low", "volume"]
-#     for field in optional_fields:
-#         if field in field_names:
-#             values_list.append(field)
-    
-#     df = pd.DataFrame(list(qs.values(*values_list)))
-    
-#     if df.empty or len(df) < sequence_length + 10:
-#         print(f"Not enough data for training. Need at least {sequence_length + 10} records, got {len(df)}")
-#         return None, None, None, None, None, None
-        
 #     df["date"] = pd.to_datetime(df["date"])
-#     df = df.sort_values("date").reset_index(drop=True)
+#     df = create_features(df)
     
-#     # Create technical indicators
-#     df = create_technical_indicators(df)
-    
-#     # Select features for model (ensure they exist)
-#     available_features = ['close', 'ma_5', 'ma_10', 'rsi', 'bb_position']
-#     feature_columns = [col for col in available_features if col in df.columns]
-    
-#     if len(feature_columns) < 2:
-#         print("Not enough features available")
-#         return None, None, None, None, None, None
-    
-#     print(f"Using features: {feature_columns}")
-    
-#     # Prepare feature matrix
-#     features = df[feature_columns].values.astype(np.float32)
-    
-#     # Scale features
+#     features = df[["close", "open", "high", "low", "ma_5"]].values.astype(np.float32)
 #     scaler = SimpleScaler()
 #     features_scaled = scaler.fit_transform(features)
     
-#     # Create sequences
 #     X, y = create_sequences(features_scaled, sequence_length)
     
-#     if len(X) == 0:
-#         print("No sequences could be created")
-#         return None, None, None, None, None, None
-    
-#     # Split into train/test
 #     split_idx = int(len(X) * (1 - test_split))
 #     X_train, X_test = X[:split_idx], X[split_idx:]
 #     y_train, y_test = y[:split_idx], y[split_idx:]
     
-#     # Convert to tensors
-#     X_train = torch.FloatTensor(X_train)
-#     X_test = torch.FloatTensor(X_test)
-#     y_train = torch.FloatTensor(y_train).unsqueeze(1)
-#     y_test = torch.FloatTensor(y_test).unsqueeze(1)
-    
-#     return X_train, X_test, y_train, y_test, scaler, feature_columns
+#     return (torch.FloatTensor(X_train), torch.FloatTensor(X_test),
+#             torch.FloatTensor(y_train).unsqueeze(1), torch.FloatTensor(y_test).unsqueeze(1),
+#             scaler, df)
 
-# def train_nn(epochs=150, lr=0.001, sequence_length=15):
-#     """Train the neural network with Django integration"""
+# def save_model_and_scaler(model, scaler, input_size=5):
+#     """Save model and scaler separately following best practices"""
+#     # Save only PyTorch-native objects in model checkpoint
+#     model_checkpoint = {
+#         'model_state_dict': model.state_dict(),
+#         'model_config': {
+#             'input_size': input_size,
+#             'hidden_size': model.hidden_size,
+#             'num_layers': model.num_layers,
+#         },
+#         'feature_columns': ["close", "open", "high", "low", "ma_5"],
+#         'sequence_length': SEQUENCE_LENGTH,
+#         'pytorch_version': str(torch.__version__)  # Convert to string to avoid TorchVersion object
+#     }
     
-#     print("Loading and preparing data...")
-#     data = load_data(sequence_length=sequence_length)
+#     # Save model with weights_only=True compatibility
+#     torch.save(model_checkpoint, MODEL_PATH)
     
-#     if data[0] is None:
-#         print("No data available for training")
+#     # Save scaler separately using pickle
+#     with open(SCALER_PATH, 'wb') as f:
+#         pickle.dump(scaler, f)
+    
+#     print(f"Model saved to {MODEL_PATH}")
+#     print(f"Scaler saved to {SCALER_PATH}")
+
+# def load_model_and_scaler():
+#     """Load model and scaler separately"""
+#     if not os.path.exists(MODEL_PATH):
+#         raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
+#     if not os.path.exists(SCALER_PATH):
+#         raise FileNotFoundError(f"Scaler file not found: {SCALER_PATH}")
+    
+#     # Add safe globals for any legacy TorchVersion objects in old checkpoints
+#     torch.serialization.add_safe_globals([torch.torch_version.TorchVersion])
+    
+#     # Load model checkpoint (weights_only=True by default in PyTorch 2.6+)
+#     checkpoint = torch.load(MODEL_PATH, map_location='cpu')
+    
+#     # Load scaler separately
+#     with open(SCALER_PATH, 'rb') as f:
+#         scaler = pickle.load(f)
+    
+#     # Create model from saved config
+#     model_config = checkpoint['model_config']
+#     model = ForexNN(
+#         input_size=model_config['input_size'],
+#         hidden_size=model_config['hidden_size'],
+#         num_layers=model_config['num_layers']
+#     )
+    
+#     # Load model weights
+#     model.load_state_dict(checkpoint['model_state_dict'])
+#     model.eval()
+    
+#     return model, scaler, checkpoint
+
+# def train_nn(epochs=200, lr=0.001):
+#     """Train neural network with proper model saving"""
+#     X_train, X_test, y_train, y_test, scaler, df = load_data()
+#     if X_train is None:
 #         return None
-        
-#     X_train, X_test, y_train, y_test, scaler, feature_columns = data
-    
-#     print(f"Training data shape: {X_train.shape}")
-#     print(f"Test data shape: {X_test.shape}")
-#     print(f"Features: {feature_columns}")
-    
-#     # Initialize model
-#     model = ForexNN(input_size=len(feature_columns))
+
+#     model = ForexNN(input_size=5)
 #     criterion = nn.MSELoss()
 #     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
-#     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=15, factor=0.5)
+#     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=10, factor=0.5)
     
-#     # Training variables
 #     best_val_loss = float('inf')
 #     patience_counter = 0
 #     patience = 30
     
 #     for epoch in range(epochs):
-#         # Training
+#         # Training phase
 #         model.train()
 #         optimizer.zero_grad()
-        
-#         train_outputs = model(X_train)
-#         train_loss = criterion(train_outputs, y_train)
-        
-#         train_loss.backward()
-#         # Gradient clipping
-#         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+#         outputs = model(X_train)
+#         loss = criterion(outputs, y_train)
+#         loss.backward()
+#         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 #         optimizer.step()
         
-#         # Validation
+#         # Validation phase
 #         model.eval()
 #         with torch.no_grad():
 #             val_outputs = model(X_test)
 #             val_loss = criterion(val_outputs, y_test)
-            
-#         # Learning rate scheduling
+        
 #         scheduler.step(val_loss)
         
-#         # Early stopping
+#         # Save best model
 #         if val_loss < best_val_loss:
 #             best_val_loss = val_loss
 #             patience_counter = 0
-#             # Save best model with metadata
-#             torch.save({
-#                 'model_state_dict': model.state_dict(),
-#                 'feature_columns': feature_columns,
-#                 'sequence_length': sequence_length,
-#                 'input_size': len(feature_columns)
-#             }, MODEL_PATH)
-#             # Save scaler separately
-#             with open(SCALER_PATH, 'wb') as f:
-#                 pickle.dump(scaler, f)
+#             # Use the new saving function
+#             save_model_and_scaler(model, scaler, input_size=5)
 #         else:
 #             patience_counter += 1
-            
-#         if epoch % 20 == 0:
-#             print(f"Epoch {epoch}/{epochs}")
-#             print(f"Train Loss: {train_loss.item():.6f}, Val Loss: {val_loss.item():.6f}")
-#             print(f"Learning Rate: {optimizer.param_groups[0]['lr']:.8f}")
-#             print("-" * 50)
-            
-#         if patience_counter >= patience:
-#             print(f"Early stopping at epoch {epoch}")
-#             break
-    
-#     # Calculate final metrics
-#     model.eval()
-#     with torch.no_grad():
-#         train_pred = model(X_train)
-#         test_pred = model(X_test)
         
-#         train_mse = criterion(train_pred, y_train).item()
-#         test_mse = criterion(test_pred, y_test).item()
+#         if epoch % 10 == 0:
+#             print(f"Epoch {epoch}, Train Loss: {loss.item():.6f}, Val Loss: {val_loss.item():.6f}")
+#     print(f"The best valid loss: {best_val_loss}")
         
-#         print(f"\nFinal Results:")
-#         print(f"Train MSE: {train_mse:.6f}")
-#         print(f"Test MSE: {test_mse:.6f}")
-#         print(f"Neural Network saved to {MODEL_PATH}")
+#         # if patience_counter >= patience:
+#         #     print(f"Early stopping at epoch {epoch}")
+#         #     break
     
 #     return model
 
 # def predict_next(days=5, sequence_length=15):
-#     """Make predictions using the trained model"""
-    
+#     """Predict future prices with proper error handling"""
 #     try:
-#         # Load model
-#         if not os.path.exists(MODEL_PATH) or not os.path.exists(SCALER_PATH):
-#             print("Model or scaler not found. Please train the model first.")
-#             return []
-            
-#         checkpoint = torch.load(MODEL_PATH, map_location='cpu')
+#         # Load model and scaler using the new function
+#         model, scaler, checkpoint = load_model_and_scaler()
+        
+#         # Get configuration from checkpoint
 #         feature_columns = checkpoint['feature_columns']
 #         saved_sequence_length = checkpoint.get('sequence_length', sequence_length)
-#         input_size = checkpoint['input_size']
         
-#         # Load scaler
-#         with open(SCALER_PATH, 'rb') as f:
-#             scaler = pickle.load(f)
-        
-#         # Initialize and load model
-#         model = ForexNN(input_size=input_size)
-#         model.load_state_dict(checkpoint['model_state_dict'])
-#         model.eval()
-        
-#         # Get latest data from Django model
+#         # Load data from database
 #         qs = ForexData.objects.all().order_by("date")
-        
-#         # Get field names and build values list
 #         field_names = [f.name for f in ForexData._meta.get_fields()]
 #         values_list = ["date", "close"]
 #         optional_fields = ["open", "high", "low", "volume"]
@@ -605,73 +349,466 @@ version-3
 #             print(f"Not enough data for prediction. Need at least {saved_sequence_length} records.")
 #             return []
         
+#         # Prepare data
 #         df["date"] = pd.to_datetime(df["date"])
 #         df = df.sort_values("date").reset_index(drop=True)
+#         df = create_features(df)
         
-#         # Create technical indicators
-#         df = create_technical_indicators(df)
-        
-#         # Get last sequence
+#         # Transform features
 #         features = df[feature_columns].values.astype(np.float32)
 #         features_scaled = scaler.transform(features)
 #         last_sequence = features_scaled[-saved_sequence_length:]
         
+#         # Make predictions
 #         predictions = []
 #         current_sequence = last_sequence.copy()
 #         last_date = df["date"].iloc[-1]
         
 #         with torch.no_grad():
 #             for i in range(days):
-#                 # Prepare input tensor
+#                 # Predict next value
 #                 input_tensor = torch.FloatTensor(current_sequence).unsqueeze(0)
-                
-#                 # Make prediction (normalized)
 #                 pred_scaled = model(input_tensor).item()
                 
-#                 # Denormalize prediction
-#                 # Create dummy array for inverse transform
+#                 # Inverse transform prediction
 #                 dummy_features = np.zeros((1, len(feature_columns)))
 #                 dummy_features[0, 0] = pred_scaled
 #                 pred_price = scaler.inverse_transform(dummy_features)[0, 0]
                 
-#                 # Add to predictions
-#                 future_date = last_date + pd.Timedelta(days=i+1)
 #                 predictions.append({
-#                     "date": str(future_date.date()),
+#                     "date": str(last_date + pd.Timedelta(days=i+1)),
 #                     "predicted_close": round(pred_price, 2)
 #                 })
                 
-#                 # Update sequence for next prediction (simplified approach)
+#                 # Update sequence for next prediction
 #                 next_features = current_sequence[-1].copy()
-#                 next_features[0] = pred_scaled  # Update close price
-                
-#                 # Update moving averages approximately
+#                 next_features[0] = pred_scaled
 #                 if len(feature_columns) > 1:
-#                     next_features[1] = (next_features[1] * 4 + pred_scaled) / 5  # ma_5 approx
-#                 if len(feature_columns) > 2:
-#                     next_features[2] = (next_features[2] * 9 + pred_scaled) / 10  # ma_10 approx
+#                     next_features[1] = (next_features[1] * 4 + pred_scaled) / 5  # ma_5 approximation
                 
-#                 # Shift sequence and add new prediction
 #                 current_sequence = np.roll(current_sequence, -1, axis=0)
 #                 current_sequence[-1] = next_features
         
 #         return predictions
         
+#     except FileNotFoundError as e:
+#         print(f"Model files not found: {e}")
+#         print("Please train the model first using train_nn()")
+#         return []
 #     except Exception as e:
 #         print(f"Error in prediction: {e}")
 #         import traceback
 #         traceback.print_exc()
 #         return []
 
-# # Backwards compatibility functions
-# def load_and_prepare_data(*args, **kwargs):
-#     """Backwards compatibility wrapper"""
-#     return load_data(*args, **kwargs)
+# def get_model_info():
+#     """Get information about the saved model"""
+#     try:
+#         if not os.path.exists(MODEL_PATH):
+#             return "No model found. Train a model first."
+        
+#         checkpoint = torch.load(MODEL_PATH, map_location='cpu')
+#         return {
+#             "model_config": checkpoint.get('model_config', {}),
+#             "feature_columns": checkpoint.get('feature_columns', []),
+#             "sequence_length": checkpoint.get('sequence_length', 'Unknown'),
+#             "pytorch_version": checkpoint.get('pytorch_version', 'Unknown'),
+#             "file_size_mb": round(os.path.getsize(MODEL_PATH) / (1024*1024), 2)
+#         }
+#     except Exception as e:
+#         return f"Error reading model info: {e}"
+"""
+version 3 - get current data
+"""
+# import torch
+# import torch.nn as nn
+# import torch.optim as optim
+# import pandas as pd
+# import numpy as np
+# import os
+# import pickle
+# import requests
+# from django.utils.dateparse import parse_datetime
+# from datetime import datetime
+# import logging
+# from .models import ForexData
 
-# def train_enhanced_model(*args, **kwargs):
-#     """Backwards compatibility wrapper"""
-#     return train_nn(*args, **kwargs)
+# MODEL_PATH = "xauusd_lstm.pt"
+# SCALER_PATH = "xauusd_scaler.pkl"
+# SEQUENCE_LENGTH = 15  # Number of days to look back
 
-# def predict_next_enhanced(*args, **kwargs):
-#     """Backwards compatibility wrapper"""
-#     return predict_next(*args, **kwargs)
+# # Set up logging
+# logging.basicConfig(level=logging.INFO)
+# logger = logging.getLogger(__name__)
+
+# # --- Neural Network Class (Unchanged) ---
+# class ForexNN(nn.Module):
+#     def __init__(self, input_size=5, hidden_size=64, num_layers=2, dropout=0.2):
+#         super(ForexNN, self).__init__()
+#         self.hidden_size = hidden_size
+#         self.num_layers = num_layers
+#         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, 
+#                             batch_first=True, dropout=dropout if num_layers > 1 else 0)
+#         self.fc_layers = nn.Sequential(
+#             nn.Linear(hidden_size, 32),
+#             nn.ReLU(),
+#             nn.Dropout(dropout),
+#             nn.Linear(32, 16),
+#             nn.ReLU(),
+#             nn.Dropout(dropout),
+#             nn.Linear(16, 1)
+#         )
+
+#     def forward(self, x):
+#         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+#         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+#         lstm_out, _ = self.lstm(x, (h0, c0))
+#         last_output = lstm_out[:, -1, :]
+#         return self.fc_layers(last_output)
+
+# # --- Feature Creation (Unchanged) ---
+# def create_features(df):
+#     """Add technical indicators and prepare features"""
+#     df = df.copy()
+#     for col in ["open", "high", "low"]:
+#         if col not in df.columns:
+#             df[col] = df["close"].shift(1).fillna(df["close"])
+#     df["ma_5"] = df["close"].rolling(5, min_periods=1).mean()
+#     df = df.fillna(method='ffill').fillna(method='bfill')
+#     return df
+
+# # --- Scaler Class (Unchanged) ---
+# class SimpleScaler:
+#     def __init__(self):
+#         self.data_min_ = None
+#         self.data_max_ = None
+#         self.data_range_ = None
+        
+#     def fit(self, X):
+#         self.data_min_ = X.min(axis=0)
+#         self.data_max_ = X.max(axis=0)
+#         self.data_range_ = self.data_max_ - self.data_min_
+#         self.data_range_[self.data_range_ == 0] = 1.0
+#         return self
+    
+#     def transform(self, X):
+#         if self.data_min_ is None or self.data_range_ is None:
+#             raise ValueError("Scaler must be fitted before transforming")
+#         return (X - self.data_min_) / self.data_range_
+    
+#     def fit_transform(self, X):
+#         return self.fit(X).transform(X)
+    
+#     def inverse_transform(self, X):
+#         if self.data_min_ is None or self.data_range_ is None:
+#             raise ValueError("Scaler must be fitted before inverse transforming")
+#         return X * self.data_range_ + self.data_min_
+
+# # --- Sequence Creation (Unchanged) ---
+# def create_sequences(data, sequence_length=SEQUENCE_LENGTH):
+#     X, y = [], []
+#     for i in range(sequence_length, len(data)):
+#         X.append(data[i-sequence_length:i])
+#         y.append(data[i, 0])  # Predict close price
+#     return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)
+
+# # --- Updated fetch_xauusd (As Defined Above) ---
+# def fetch_xauusd(latest_only=True, min_data_points=SEQUENCE_LENGTH + 1):
+#     """
+#     Fetch XAU/USD daily data from Twelve Data.
+#     Args:
+#         latest_only (bool): If True, fetch only data newer than the latest in DB.
+#         min_data_points (int): Minimum number of data points required.
+#     Returns:
+#         bool: True if data was successfully fetched and saved, False otherwise.
+#     """
+#     try:
+#         url = 'https://api.twelvedata.com/time_series'
+#         params = {
+#             "symbol": "XAU/USD",
+#             "interval": "1day",
+#             "outputsize": 30 if latest_only else max(30, min_data_points * 2),
+#             "apikey": "92316069f35c407aa1ebdbd7279fe144",
+#         }
+
+#         response = requests.get(url, params=params, timeout=10)
+#         response.raise_for_status()
+#         data = response.json()
+
+#         if 'values' not in data or not data['values']:
+#             logger.error(f"Error fetching XAU/USD: {data.get('message', 'No values returned')}")
+#             return False
+
+#         latest_in_db = ForexData.objects.order_by('-date').first()
+#         latest_date = latest_in_db.date if latest_in_db else None
+
+#         saved_count = 0
+#         for entry in data['values']:
+#             dt = parse_datetime(entry["datetime"])
+#             if dt is None:
+#                 logger.warning(f"Invalid datetime format: {entry['datetime']}")
+#                 continue
+
+#             dt = dt.replace(tzinfo=None) if dt.tzinfo else dt
+
+#             if latest_only and latest_date and dt.date() <= latest_date:
+#                 continue
+
+#             ForexData.objects.update_or_create(
+#                 date=dt.date(),
+#                 defaults={
+#                     "open": float(entry["open"]),
+#                     "high": float(entry["high"]),
+#                     "low": float(entry["low"]),
+#                     "close": float(entry["close"]),
+#                     "volume": float(entry.get("volume", 0))
+#                 }
+#             )
+#             saved_count += 1
+
+#         logger.info(f"XAU/USD: Fetched and saved {saved_count} new records.")
+#         return saved_count > 0
+
+#     except requests.exceptions.RequestException as e:
+#         logger.error(f"Network error fetching XAU/USD: {e}")
+#         return False
+#     except Exception as e:
+#         logger.error(f"Unexpected error fetching XAU/USD: {e}")
+#         return False
+
+# # --- Updated load_data Function ---
+# def load_data(sequence_length=SEQUENCE_LENGTH, test_split=0.2, fetch_if_empty=True):
+#     """
+#     Load data from ForexData model, fetching new data if necessary.
+#     """
+#     # Fetch data if the database is empty or has insufficient records
+#     if fetch_if_empty or ForexData.objects.count() < sequence_length + 1:
+#         success = fetch_xauusd(latest_only=True, min_data_points=sequence_length + 1)
+#         if not success:
+#             logger.error("Failed to fetch current XAU/USD data.")
+#             return None, None, None, None, None
+    
+#     qs = ForexData.objects.all().order_by("date")
+#     df = pd.DataFrame(list(qs.values("date", "open", "high", "low", "close", "volume")))
+    
+#     if df.empty or len(df) < sequence_length + 1:
+#         logger.error(f"Not enough data: {len(df)} records. Need at least {sequence_length + 1}.")
+#         return None, None, None, None, None
+    
+#     df["date"] = pd.to_datetime(df["date"])
+#     df = create_features(df)
+    
+#     features = df[["close", "open", "high", "low", "ma_5"]].values.astype(np.float32)
+#     scaler = SimpleScaler()
+#     features_scaled = scaler.fit_transform(features)
+    
+#     X, y = create_sequences(features_scaled, sequence_length)
+    
+#     split_idx = int(len(X) * (1 - test_split))
+#     X_train, X_test = X[:split_idx], X[split_idx:]
+#     y_train, y_test = y[:split_idx], y[split_idx:]
+    
+#     return (torch.FloatTensor(X_train), torch.FloatTensor(X_test),
+#             torch.FloatTensor(y_train).unsqueeze(1), torch.FloatTensor(y_test).unsqueeze(1),
+#             scaler, df)
+
+# # --- Save Model and Scaler (Unchanged) ---
+# def save_model_and_scaler(model, scaler, input_size=5):
+#     """Save model and scaler separately following best practices"""
+#     model_checkpoint = {
+#         'model_state_dict': model.state_dict(),
+#         'model_config': {
+#             'input_size': input_size,
+#             'hidden_size': model.hidden_size,
+#             'num_layers': model.num_layers,
+#         },
+#         'feature_columns': ["close", "open", "high", "low", "ma_5"],
+#         'sequence_length': SEQUENCE_LENGTH,
+#         'pytorch_version': str(torch.__version__)
+#     }
+    
+#     torch.save(model_checkpoint, MODEL_PATH)
+    
+#     with open(SCALER_PATH, 'wb') as f:
+#         pickle.dump(scaler, f)
+    
+#     logger.info(f"Model saved to {MODEL_PATH}")
+#     logger.info(f"Scaler saved to {SCALER_PATH}")
+
+# # --- Load Model and Scaler (Unchanged) ---
+# def load_model_and_scaler():
+#     """Load model and scaler separately"""
+#     if not os.path.exists(MODEL_PATH):
+#         raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
+#     if not os.path.exists(SCALER_PATH):
+#         raise FileNotFoundError(f"Scaler file not found: {SCALER_PATH}")
+    
+#     torch.serialization.add_safe_globals([torch.torch_version.TorchVersion])
+    
+#     checkpoint = torch.load(MODEL_PATH, map_location='cpu')
+    
+#     with open(SCALER_PATH, 'rb') as f:
+#         scaler = pickle.load(f)
+    
+#     model_config = checkpoint['model_config']
+#     model = ForexNN(
+#         input_size=model_config['input_size'],
+#         hidden_size=model_config['hidden_size'],
+#         num_layers=model_config['num_layers']
+#     )
+    
+#     model.load_state_dict(checkpoint['model_state_dict'])
+#     model.eval()
+    
+#     return model, scaler, checkpoint
+
+# # --- Train Neural Network (Unchanged) ---
+# def train_nn(epochs=200, lr=0.001):
+#     """Train neural network with proper model saving"""
+#     X_train, X_test, y_train, y_test, scaler, df = load_data()
+#     if X_train is None:
+#         logger.error("Training aborted: No data available.")
+#         return None
+
+#     model = ForexNN(input_size=5)
+#     criterion = nn.MSELoss()
+#     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
+#     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=10, factor=0.5)
+    
+#     best_val_loss = float('inf')
+#     patience_counter = 0
+#     patience = 30
+    
+#     for epoch in range(epochs):
+#         model.train()
+#         optimizer.zero_grad()
+#         outputs = model(X_train)
+#         loss = criterion(outputs, y_train)
+#         loss.backward()
+#         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+#         optimizer.step()
+        
+#         model.eval()
+#         with torch.no_grad():
+#             val_outputs = model(X_test)
+#             val_loss = criterion(val_outputs, y_test)
+        
+#         scheduler.step(val_loss)
+        
+#         if val_loss < best_val_loss:
+#             best_val_loss = val_loss
+#             patience_counter = 0
+#             save_model_and_scaler(model, scaler, input_size=5)
+#         else:
+#             patience_counter += 1
+        
+#         if epoch % 10 == 0:
+#             logger.info(f"Epoch {epoch}, Train Loss: {loss.item():.6f}, Val Loss: {val_loss.item():.6f}")
+    
+#     logger.info(f"The best valid loss: {best_val_loss}")
+#     return model
+
+# # --- Updated predict_next Function ---
+# def predict_next(days=5, sequence_length=SEQUENCE_LENGTH):
+#     """Predict future prices with current data"""
+#     try:
+#         # Ensure fresh data
+#         success = fetch_xauusd(latest_only=True, min_data_points=sequence_length + 1)
+#         if not success:
+#             logger.error("Failed to fetch current data for prediction.")
+#             return []
+        
+#         # Load model and scaler
+#         model, scaler, checkpoint = load_model_and_scaler()
+        
+#         feature_columns = checkpoint['feature_columns']
+#         saved_sequence_length = checkpoint.get('sequence_length', sequence_length)
+        
+#         # Load data from database
+#         qs = ForexData.objects.all().order_by("date")
+#         field_names = [f.name for f in ForexData._meta.get_fields()]
+#         values_list = ["date", "close"]
+#         optional_fields = ["open", "high", "low", "volume"]
+#         for field in optional_fields:
+#             if field in field_names:
+#                 values_list.append(field)
+        
+#         df = pd.DataFrame(list(qs.values(*values_list)))
+        
+#         if df.empty or len(df) < saved_sequence_length:
+#             logger.error(f"Not enough data for prediction. Need at least {saved_sequence_length} records, got {len(df)}.")
+#             return []
+        
+#         df["date"] = pd.to_datetime(df["date"])
+#         df = df.sort_values("date").reset_index(drop=True)
+#         df = create_features(df)
+        
+#         # Transform features
+#         features = df[feature_columns].values.astype(np.float32)
+#         features_scaled = scaler.transform(features)
+#         last_sequence = features_scaled[-saved_sequence_length:]
+        
+#         # Make predictions
+#         predictions = []
+#         current_sequence = last_sequence.copy()
+#         last_date = df["date"].iloc[-1]
+        
+#         with torch.no_grad():
+#             for i in range(days):
+#                 # Predict next value
+#                 input_tensor = torch.FloatTensor(current_sequence).unsqueeze(0)
+#                 pred_scaled = model(input_tensor).item()
+                
+#                 # Inverse transform prediction
+#                 dummy_features = np.zeros((1, len(feature_columns)))
+#                 dummy_features[0, 0] = pred_scaled
+#                 pred_price = scaler.inverse_transform(dummy_features)[0, 0]
+                
+#                 predictions.append({
+#                     "date": str(last_date + pd.Timedelta(days=i+1)),
+#                     "predicted_close": round(pred_price, 2)
+#                 })
+                
+#                 # Update sequence for next prediction
+#                 next_features = current_sequence[-1].copy()
+#                 next_features[0] = pred_scaled
+#                 if len(feature_columns) > 1:
+#                     next_features[4] = (next_features[4] * 4 + pred_scaled) / 5  # Update ma_5
+#                     # Approximate open, high, low based on close
+#                     next_features[1] = pred_scaled  # open
+#                     next_features[2] = pred_scaled * 1.005  # high (approximation)
+#                     next_features[3] = pred_scaled * 0.995  # low (approximation)
+                
+#                 current_sequence = np.roll(current_sequence, -1, axis=0)
+#                 current_sequence[-1] = next_features
+        
+#         logger.info(f"Generated {days} predictions for XAU/USD.")
+#         return predictions
+        
+#     except FileNotFoundError as e:
+#         logger.error(f"Model files not found: {e}")
+#         logger.info("Please train the model first using train_nn()")
+#         return []
+#     except Exception as e:
+#         logger.error(f"Error in prediction: {e}")
+#         import traceback
+#         traceback.print_exc()
+#         return []
+
+# # --- Get Model Info (Unchanged) ---
+# def get_model_info():
+#     """Get information about the saved model"""
+#     try:
+#         if not os.path.exists(MODEL_PATH):
+#             return "No model found. Train a model first."
+        
+#         checkpoint = torch.load(MODEL_PATH, map_location='cpu')
+#         return {
+#             "model_config": checkpoint.get('model_config', {}),
+#             "feature_columns": checkpoint.get('feature_columns', []),
+#             "sequence_length": checkpoint.get('sequence_length', 'Unknown'),
+#             "pytorch_version": checkpoint.get('pytorch_version', 'Unknown'),
+#             "file_size_mb": round(os.path.getsize(MODEL_PATH) / (1024*1024), 2)
+#         }
+#     except Exception as e:
+#         return f"Error reading model info: {e}"
