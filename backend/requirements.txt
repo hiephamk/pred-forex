@@ -1,0 +1,11 @@
+django
+djangorestframework
+psycopg2-binary
+python-decouple
+requests
+django-environ
+django-cors-headers
+torch
+torchvision
+torchaudio
+pandas
