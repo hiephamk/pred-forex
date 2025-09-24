@@ -1,10 +1,10 @@
 import {BrowserRouter as Routers, Routes, Route} from "react-router"
-import FxDashboard from '@/components/Forex/FxDashboard'
+import FxDashboard from '@/Pages/FxDashboardPage'
 
 import Dashboard from '@/Pages/Dashboard'
-import ExaminingHealth from '@/components/Healthcare/ExaminingHealth'
+import ExaminingHealth from '@/Pages/HeathcarePage'
 import HomePage from '@/Pages/HomePage'
-import LanguagePage from '@/components/LearningLanguagues/LanguagePage'
+import LanguagePage from '@/Pages/LanguagePage'
 
 function App() {
 

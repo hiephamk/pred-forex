@@ -124,14 +124,14 @@ function FxDashboard() {
 
         {/* Buttons */}
         <VStack gap={4}>
-          <Button bg={"black"}
+          <Button
             onClick={fetchPreds}
             // isLoading={loading}
             loadingText="Refreshing"
           >
             Refresh Predictions
           </Button>
-          <Button bg={"black"}
+          <Button
             onClick={trainModel}
             // isLoading={training}
             loadingText="Training"
