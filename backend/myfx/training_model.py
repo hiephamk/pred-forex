@@ -14,9 +14,13 @@ class ForexNN(nn.Module):
     def __init__(self, input_features=5):
         super().__init__()
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(input_features, 64),
+            nn.Linear(input_features, 256),
             nn.ReLU(),
-            nn.Linear(64, 64),
+            # nn.Dropout(0.2),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            # nn.Dropout(0.2),
+            nn.Linear(128, 64),
             nn.ReLU(),
             nn.Linear(64, 1),
         )

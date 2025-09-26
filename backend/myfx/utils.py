@@ -15,7 +15,7 @@ def fetch_xauusd(latest_only=True):
     params = {
         "symbol": "XAU/USD",
         "interval": "1h",
-        "outputsize": 960 if not latest_only else 200,
+        "outputsize": 24 if not latest_only else 4,
         "apikey": os.environ.get("apiKey_twelvedata"),
     }
 
