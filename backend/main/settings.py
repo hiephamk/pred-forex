@@ -21,6 +21,7 @@ DEBUG = True
 # ALLOWED_HOSTS = []
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
+    "http://127.0.0.1:5153"
 ]
 
 # Application definition
@@ -32,10 +33,28 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # allauth
+    # "dj_rest_auth",
+    # "dj_rest_auth.registration",
+    # "django.contrib.sites",  # required
+    # "allauth",
+    # "allauth.account",
+    # "allauth.socialaccount",
+    # "allauth.socialaccount.providers.google",
+    # custom apps
     'corsheaders',
     'rest_framework',
+    "rest_framework.authtoken",
     'myfx',
 ]
+# SITE_ID = 2
+# AUTHENTICATION_BACKENDS = [
+#     "django.contrib.auth.backends.ModelBackend",   # default
+#     "allauth.account.auth_backends.AuthenticationBackend",  # allauth
+# ]
+
+# LOGIN_REDIRECT_URL = "/"  # where to redirect after login
+# LOGOUT_REDIRECT_URL = "/"
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -49,6 +68,12 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'main.urls'
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework.authentication.SessionAuthentication",
+        # "rest_framework_simplejwt.authentication.JWTAuthentication",
+    )
+}
 
 TEMPLATES = [
     {

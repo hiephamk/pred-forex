@@ -12,8 +12,6 @@ const Dashboard_Nav = () => {
           <Link href="/home">
             <Text fontFamily={fontfa.family_1} fontSize={"18px"}>Home</Text>
           </Link>
-          <Link href='/home/languages'><Text fontSize={"20px"} fontFamily={fontfa.family_1}>Learning Languages</Text></Link>
-          <Link href='/home/healthcare'><Text fontSize={"20px"} fontFamily={fontfa.family_1} >Examining Health</Text></Link>
           <Link href='/home/forex'><Text fontSize={"20px"} fontFamily={fontfa.family_1}>Foxex</Text></Link>
           <ColorModeButton/>
         </HStack>

@@ -1,7 +1,7 @@
 from django.db import models
 
 class ForexData(models.Model):
-    date = models.DateField(unique=True)
+    date = models.DateTimeField(unique=True)
     open = models.FloatField()
     high = models.FloatField()
     low = models.FloatField()
