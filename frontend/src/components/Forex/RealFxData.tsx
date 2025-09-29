@@ -6,23 +6,27 @@ import formatDate from './formatDate';
 interface Prediction {
   date: string;
   hour: number;
-  predicted_close: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
 };
 interface PredictionProps {
   predicted: Prediction[];
 }
-const FxPredictionResult = () => {
-  const [predicted, setPredicted] = useState<Prediction[]>([])
+
+const RealFxData = () => {
+  const [realDataFx, setRealDataFx] = useState<Prediction[]>([])
 
   const fetchPredictions = async() => {
-    const url = 'http://127.0.0.1:8000/api/forex/predictions/history/'
+    const url = 'http://localhost:8000/api/forex/real_data/'
     try {
       const res = await axios.get(url)
       let sortedData = res.data
       sortedData = sortedData
         .sort((a: Prediction, b: Prediction) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0,10)
-      setPredicted(sortedData)
+      setRealDataFx(sortedData)
       
     }catch(error){
       if (axios.isAxiosError(error)) {
@@ -36,17 +40,20 @@ const FxPredictionResult = () => {
     fetchPredictions()
   },[])
 
-  const latestPredictions = predicted
+  const latestPredictions = realDataFx
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 24);
 
   return (
     <Box>
         <Table.Root showColumnBorder>
-            <Table.Header>
+            <Table.Header >
                 <Table.Row>
                     <Table.ColumnHeader>Date-Time</Table.ColumnHeader>
-                    <Table.ColumnHeader>Prediction</Table.ColumnHeader>
+                    <Table.ColumnHeader>Open</Table.ColumnHeader>
+                    <Table.ColumnHeader>High</Table.ColumnHeader>
+                    <Table.ColumnHeader>Low</Table.ColumnHeader>
+                    <Table.ColumnHeader>Close</Table.ColumnHeader>
                 </Table.Row>
             </Table.Header>
             <Table.Body>
@@ -58,9 +65,17 @@ const FxPredictionResult = () => {
                 {formatDate(item.date)}
               </Table.Cell>
               <Table.Cell>
-                {item.predicted_close}
+                {item.open}
               </Table.Cell>
-
+              <Table.Cell>
+                {item.high}
+              </Table.Cell>
+              <Table.Cell>
+                {item.low}
+              </Table.Cell>
+              <Table.Cell>
+                {item.close}
+              </Table.Cell>
             </Table.Row>
             
           ))
@@ -73,4 +88,4 @@ const FxPredictionResult = () => {
   )
 }
 
-export default FxPredictionResult
+export default RealFxData

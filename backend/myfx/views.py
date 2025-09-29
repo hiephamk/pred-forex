@@ -1,17 +1,35 @@
 
 from rest_framework.decorators import api_view
+from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
-from .models import ForexData
+from rest_framework import status, generics
+from .serializers import PredictedForexDataSerializer, ForexDataSerializer
+from .models import ForexData, PredictedForexData
 from .training_model import (
     train_nn, 
-    predict_next_hours, 
-    get_hourly_predictions_for_today,
     load_data
 )
+from .prediction import (predict_next_hours, 
+    get_hourly_predictions_for_today,)
 from django.http import JsonResponse
 from django.utils import timezone
 import json
+from django.utils import timezone
+from datetime import timedelta
+from .utils import fetch_xauusd
+
+class ForexDataView(generics.ListAPIView):
+    queryset = ForexData.objects.all()
+    serializer_class = ForexDataSerializer
+
+class PredictedForexDataView(APIView):
+    def get(self, request):
+        # Optionally filter by date range, e.g., last 7 days
+        days = int(request.query_params.get('days', 7))  # Default to 7 days
+        start_date = timezone.now() - timedelta(days=days)
+        predictions = PredictedForexData.objects.filter(date__gte=start_date).order_by('date').distinct()
+        serializer = PredictedForexDataSerializer(predictions, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 @api_view(["POST"])
 def train_nn_view(request):
@@ -120,6 +138,7 @@ def data_status(request):
             "error": f"Failed to get data status: {str(e)}"
         }, status=500)
 
+
 @api_view(["GET"])
 def recent_data(request):
     """Get recent historical data"""
@@ -165,8 +184,6 @@ def recent_data(request):
 def fetch_latest_data(request):
     """Manually trigger fetching of latest data"""
     try:
-        from .utils import fetch_xauusd
-        
         # Fetch latest data
         fetch_xauusd(latest_only=True)
         
