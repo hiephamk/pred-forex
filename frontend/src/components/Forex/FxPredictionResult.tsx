@@ -21,7 +21,7 @@ const FxPredictionResult = () => {
       let sortedData = res.data
       sortedData = sortedData
         .sort((a: Prediction, b: Prediction) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0,10)
+        .slice(0,5)
       setPredicted(sortedData)
       
     }catch(error){
@@ -36,9 +36,9 @@ const FxPredictionResult = () => {
     fetchPredictions()
   },[])
 
-  const latestPredictions = predicted
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 24);
+  // const latestPredictions = predicted
+  //   .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+  //   .slice(0, 24);
 
   return (
     <Box>
@@ -51,8 +51,8 @@ const FxPredictionResult = () => {
             </Table.Header>
             <Table.Body>
             {
-            latestPredictions.length > 0 ? (
-            latestPredictions.map((item: Prediction) => (
+            predicted.length > 0 ? (
+            predicted.map((item: Prediction) => (
             <Table.Row key={item.date + '-' + item.hour}>
               <Table.Cell>
                 {formatDate(item.date)}

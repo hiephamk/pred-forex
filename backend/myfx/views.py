@@ -5,16 +5,11 @@ from rest_framework.response import Response
 from rest_framework import status, generics
 from .serializers import PredictedForexDataSerializer, ForexDataSerializer
 from .models import ForexData, PredictedForexData
-from .training_model import (
-    train_nn, 
-    load_data
-)
-from .prediction import (predict_next_hours, 
-    get_hourly_predictions_for_today,)
+from .training_model import train_lstm, load_data, load_scalers
+from .prediction import (predict_next_hours, get_hourly_predictions_for_today,)
 from django.http import JsonResponse
 from django.utils import timezone
 import json
-from django.utils import timezone
 from datetime import timedelta
 from .utils import fetch_xauusd
 
@@ -41,7 +36,7 @@ def train_nn_view(request):
             epochs = request.data.get('epochs', 500)
         
         print(f"Starting training with {epochs} epochs...")
-        model = train_nn(epochs=epochs)
+        model = train_lstm(epochs=epochs)
         
         if model:
             return Response({

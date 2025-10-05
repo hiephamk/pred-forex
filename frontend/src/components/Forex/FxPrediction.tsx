@@ -40,7 +40,9 @@ ChartJS.register(
 );
 
 type Prediction = {
+  id: number;
   datetime: string;
+  date:string
   hour: number;
   predicted_close: number;
   time_from_now?: string;
@@ -81,7 +83,7 @@ function FxPrediction() {
   const [currentTimeUTC, setCurrentTimeUTC] = useState<string>("");
   const [generatedAt, setGeneratedAt] = useState<string>("");
   const [predictionType, setPredictionType] = useState<string>("next");
-  const [hours, setHours] = useState<number>(5);
+  const [hours, setHours] = useState<number>(2);
 
   const fetchRealData = async() => {
     const url = 'http://localhost:8000/api/forex/real_data/'
@@ -92,12 +94,12 @@ function FxPrediction() {
       // Sort chronologically (oldest to newest)
       const sortedData = res.data
         .sort((a: RealData, b: RealData) => 
-          new Date(a.date).getTime() - new Date(b.date).getTime()
+          new Date(b.date).getTime() - new Date(a.date).getTime()
         );
       
       // Only keep the last 12 hours of data
       const now = DateTime.utc();
-      const twelveHoursAgo = now.minus({ hours: 12 });
+      const twelveHoursAgo = now.minus({ hours:48});
       
       const recentData = sortedData.filter((p: RealData) => {
         const pointTime = DateTime.fromISO(p.date, { zone: 'utc' });
@@ -156,11 +158,12 @@ function FxPrediction() {
       const history_data = resp.data
       
       // Sort by date (newest first) for display
-      const sortedHistory = history_data.sort(
+      const sortedHistory = history_data
+      .sort(
         (a: PredictionHistory, b: PredictionHistory) => 
           new Date(b.date).getTime() - new Date(a.date).getTime()
+
       );
-      
       setPredHistory(sortedHistory)
     } catch(error) {
       console.error("fetch pred history failed:", error)
@@ -203,10 +206,6 @@ function FxPrediction() {
     
     try {
       const response = await axios.post(url)
-      console.log('📊 Full API Response:', response.data);
-    console.log('📊 Latest date from API:', response.data.latest_date);
-    console.log('📊 Latest price from API:', response.data.latest_price);
-    console.log('📊 Total records in DB:', response.data.total_records);
       if (response.data.success) {
         console.log('✅ Data fetched successfully:', response.data);
         
@@ -321,35 +320,28 @@ function FxPrediction() {
         label: "Real Data",
         data: uniqueTimestamps.map(ts => realDataMap.get(ts) ?? null),
         borderColor: "#FFD700",
-        backgroundColor: "rgba(255, 215, 0, 0.2)",
+        // backgroundColor: "rgba(255, 215, 0, 0.2)",
         fill: false,
         tension: 0.3,
         pointBackgroundColor: "#FFD700",
         pointBorderColor: "#B8860B",
-        pointRadius: 5,
+        pointRadius: 1,
         spanGaps: false,
       }] : []),
       ...(predHistory.length > 0 ? [{
         label: "Predictions",
         data: uniqueTimestamps.map(ts => predHistoryMap.get(ts) ?? null),
         borderColor: "#e54e08ff",
-        backgroundColor: "rgba(229, 78, 8, 0.2)",
+        // backgroundColor: "rgba(229, 78, 8, 0.2)",
         fill: false,
         tension: 0.3,
         pointBackgroundColor: "#ed4d08ff",
         pointBorderColor: "#d45320ff",
-        pointRadius: 5,
+        pointRadius:3,
         spanGaps: false,
       }] : []),
     ],
   };
-
-  // if (combinedChartData.datasets.length > 0) {
-  //   console.log("Real Data points:", combinedChartData.datasets[0]?.data.filter(d => d !== null).length);
-  // }
-  // if (combinedChartData.datasets.length > 1) {
-  //   console.log("Prediction points:", combinedChartData.datasets[1]?.data.filter(d => d !== null).length);
-  // }
 
   const chartOptions = {
     responsive: true,
@@ -426,7 +418,7 @@ function FxPrediction() {
             <GridItem>
               <Text fontSize="sm" color="gray.600">Generated At</Text>
               <Text fontWeight="bold">
-                {generatedAt ? formatDateTimeEEST(generatedAt) : "N/A"}
+                {generatedAt ? formatDate(generatedAt) : "N/A"}
               </Text>
             </GridItem>
             <GridItem>
@@ -490,16 +482,16 @@ function FxPrediction() {
                 </Table.Row>
               </Table.Header>
               <Table.Body>
-                {predHistory.length > 0 ? (
-                  predHistory
-                  .sort((a: PredictionHistory, b: PredictionHistory) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                  .slice(0, 5)
+                {preds.length > 0 ? (
+                  preds
+                  // .sort((a: Prediction, b: Prediction) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                  // .slice(0, 10)
                   .map((p) => (
-                    <Table.Row key={`pred-${p.id}-${p.date}`}>
+                    <Table.Row key={`pred-${p.id}-${p.datetime}`}>
                       <Table.Cell>
                         <VStack align="start" gap={0}>
                           <Text fontSize="sm" fontWeight="medium">
-                            {formatDate(p.date)}
+                            {formatDate(p.datetime)}
                           </Text>
                         </VStack>
                       </Table.Cell>
